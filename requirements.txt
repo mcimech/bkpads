@@ -1,0 +1,2 @@
+pyads
+pyserial>=2.6

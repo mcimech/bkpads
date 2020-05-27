@@ -1,0 +1,3 @@
+Copyright (c) 2020 Johannes Payr
+
+Do the f* you want license (for now)
