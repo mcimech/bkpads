@@ -15,30 +15,37 @@ LCR_SERIAL = '/dev/ttyACM0'
 PLC_ID = '127.0.0.1.1.1'
 
 # The variable name of the flag for activation of a measurement in PLC GVL
-PLC_MEASURE_FLAG = 'GVL.meas_start'
+PLC_MEASURE_FLAG = 'GVL.bMeas_start'
 
 # The variable name of the measurement type in PLC GVL - set by PLC
-PLC_MEASURE_TYPE = 'GVL.meas_type'
+PLC_MEASURE_TYPE = 'GVL.sMeas_type'
 
 # The variable names for the measurement results in PLC GVL - set by Script
 # (most measurements return 2 values)
-PLC_RESULT01 = 'GVL.meas_01'
-PLC_RESULT02 = 'GVL.meas_02'
+PLC_RESULT01 = 'GVL.rMeas_01'
+PLC_RESULT02 = 'GVL.rMeas_02'
 
 # The variable name of the flag to show completion of measurement
-PLC_RESUME_FLAG = 'GVL.meas_ready'
+PLC_RESUME_FLAG = 'GVL.bMeas_ready'
 
 # The variable name of the flag signifying an error occurred
-PLC_ERROR_FLAG = 'GVL.meas_error'
+PLC_ERROR_FLAG = 'GVL.bMeas_error'
 
 # The variable name which holds the error message in PLC
-PLC_ERROR_MSG = 'GVL.meas_errormsg'
+PLC_ERROR_MSG = 'GVL.sMeas_errormsg'
 
 
 if __name__ == "__main__":
     # main initialisation here
     plc = pyads.Connection(PLC_ID, 851)
     lcr = bkp891.connect(LCR_SERIAL)
+
+
+    def error_notification(errormesg):
+        plc.write_by_name(PLC_ERROR_FLAG, True, pyads.PLCTYPE_BOOL)
+        plc.write_by_name(PLC_ERROR_MSG, errormesg, pyads.PLCTYPE_STRING)
+
+        lcr.clear_instrument()
 
 
     def start_measure():
@@ -52,7 +59,7 @@ if __name__ == "__main__":
         try:
             lcr.set_function(bkp891.Measurement[meastype])
         except KeyError:
-            # TODO error handling
+            error_notification('Invalid Measurement Type')
             return
 
         measvalue = lcr.fetch()
