@@ -5,11 +5,16 @@ from ctypes import sizeof
 
 from threading import Thread
 
+from time import sleep
+
 """ Setup Constants """
 # TODO put this in a conf-file or something...
 
 # The name of the serial port of the LCR device
-LCR_SERIAL = '/dev/ttyACM0'
+LCR_SERIAL = 'COM4'
+
+# Time to wait between setting the measurement mode and fetching the result
+LCR_TIME_TO_WAIT = 1.0  # in seconds
 
 # The AMS NetId of the PLC. Default is localhost '127.0.0.1.1.1'
 PLC_ID = '127.0.0.1.1.1'
@@ -34,14 +39,20 @@ PLC_ERROR_FLAG = 'GVL.bMeas_error'
 # The variable name which holds the error message in PLC
 PLC_ERROR_MSG = 'GVL.sMeas_errormsg'
 
+# The variable name of the flag to stop this script
+PLC_KILL_FLAG = 'GVL.bKill_proc'
+
 
 if __name__ == "__main__":
     # main initialisation here
     plc = pyads.Connection(PLC_ID, 851)
     lcr = bkp891.connect(LCR_SERIAL)
 
+    alive_flag = True
+
 
     def error_notification(errormesg):
+        plc.write_by_name(PLC_MEASURE_FLAG, False, pyads.PLCTYPE_BOOL)
         plc.write_by_name(PLC_ERROR_FLAG, True, pyads.PLCTYPE_BOOL)
         plc.write_by_name(PLC_ERROR_MSG, errormesg, pyads.PLCTYPE_STRING)
 
@@ -62,7 +73,13 @@ if __name__ == "__main__":
             error_notification('Invalid Measurement Type')
             return
 
+        print('Set measurement type: {0}'.format(meastype))
+
+        sleep(LCR_TIME_TO_WAIT)
+
         measvalue = lcr.fetch()
+
+        print('Fetched measurement: {0}'.format(measvalue))
 
         if isinstance(measvalue, tuple):
             plc.write_by_name(PLC_RESULT01, float(measvalue[0]),
@@ -78,15 +95,23 @@ if __name__ == "__main__":
         plc.write_by_name(PLC_RESUME_FLAG, True, pyads.PLCTYPE_BOOL)
 
 
-    @plc.notification(pyads.PLCTYPE_INT)
+    @plc.notification(pyads.PLCTYPE_BOOL)
     def callback(handle, name, timestamp, value):
-        if (value > 2000) or (value < 0):
+        if value:
             t = Thread(target=start_measure)
             t.start()
 
         print(
             'handle: {0} | name: {1} | timestamp: {2} | value: {3}'.format(
                 handle, name, timestamp, value))
+
+
+    @plc.notification(pyads.PLCTYPE_BOOL)
+    def killme(handle, name, timestamp, value):
+        global alive_flag
+
+        if value:
+            alive_flag = False
 
     plc.open()
 
@@ -95,12 +120,17 @@ if __name__ == "__main__":
     lcr.set_format(True)        # Set format to 'binary'
 
     with plc:
-        attr = pyads.NotificationAttrib(sizeof(pyads.PLCTYPE_INT))
+        attr = pyads.NotificationAttrib(sizeof(pyads.PLCTYPE_BOOL))
 
-        handles = plc.add_device_notification(PLC_MEASURE_FLAG, attr,
-                                              callback)
+        handles_meas = plc.add_device_notification(PLC_MEASURE_FLAG, attr,
+                                                   callback)
 
-        while True:
+        handles_kill = plc.add_device_notification(PLC_KILL_FLAG, attr,
+                                                   killme)
+
+        print('Callback set...')
+
+        while alive_flag:
             # TODO make this proper and allow to exit gracefully
             pass
 
