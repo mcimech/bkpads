@@ -1,3 +1,5 @@
+from pyads import ADSError
+
 import bkp891
 import pyads
 
@@ -47,8 +49,6 @@ if __name__ == "__main__":
     # main initialisation here
     plc = pyads.Connection(PLC_ID, 851)
     lcr = bkp891.connect(LCR_SERIAL)
-
-    alive_flag = True
 
 
     def error_notification(errormesg):
@@ -106,13 +106,6 @@ if __name__ == "__main__":
                 handle, name, timestamp, value))
 
 
-    @plc.notification(pyads.PLCTYPE_BOOL)
-    def killme(handle, name, timestamp, value):
-        global alive_flag
-
-        if value:
-            alive_flag = False
-
     plc.open()
 
     # Set up measuring instrument
@@ -125,13 +118,15 @@ if __name__ == "__main__":
         handles_meas = plc.add_device_notification(PLC_MEASURE_FLAG, attr,
                                                    callback)
 
-        handles_kill = plc.add_device_notification(PLC_KILL_FLAG, attr,
-                                                   killme)
+        # handles_kill = plc.add_device_notification(PLC_KILL_FLAG, attr,
+        #                                           killme)
 
         print('Callback set...')
 
-        while alive_flag:
-            # TODO make this proper and allow to exit gracefully
-            pass
+        while True:
+            sleep(10)
 
-
+            try:
+                plc.read_state()
+            except ADSError:
+                break
