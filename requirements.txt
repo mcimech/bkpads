@@ -1,2 +1,3 @@
+bkp891
 pyads
-pyserial>=2.6
+click
